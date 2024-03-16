@@ -1,1 +1,168 @@
 
+
+
+
+
+// SPDX-License-Identifier: MIT
+
+
+pragma solidity >=0.8.2 <0.9.0;
+
+import "contracts/Assignment_3/SafeYorkERC20Token.sol";
+
+contract DEX {
+    IERC20 public token;
+
+    event Bought(uint256 amount);
+    event Sold(uint256 amount);
+
+    event LogMessage(uint256 amount); // just to log the msg.value
+
+    constructor() {
+        token = new YorkERC20Token();
+    }
+
+    // buy function purchases token from the eth provided
+    // payable means the buy function deals with ethers.
+
+
+// address(this) - address of the deployed DEX contract
+    function buy() public payable {
+        // check current ether with account
+        uint256 etherWithAccount = msg.value;
+
+        // checking if ethers exists with caller - msg.sender in this case.
+        require(etherWithAccount > 0, "No ether sent by caller");
+
+        // emit LogMessage(etherWithAccount);
+
+        // 1 Token = 1 Ether
+        uint256 uintTokenPrice = 1 ether;
+
+        // for Ex. if 1 Token corresponds to 2 ethers,
+        //so if the contract has 50 eth (msg.value) -
+        //it can buy maximum of 25 tokens.
+        uint256 totalTokensAccountCanBuy = msg.value / uintTokenPrice;
+
+        // check if current instance of DEX contract has balance than it can max. buy
+        require(
+            token.balanceOf(address(this)) > totalTokensAccountCanBuy,
+            "Contract must have sufficient balance to purchase eths."
+        );
+
+        // transferring tokens to account.
+        token.transfer(msg.sender, totalTokensAccountCanBuy);
+
+          emit LogMessage(token.balanceOf(msg.sender)); // to verify tokens with account.
+
+        emit Bought(totalTokensAccountCanBuy);
+    }
+
+    // sell fucntion accepts the token amount and exchanges it for the ethers to be 
+    // sent to the account 
+
+    // the tokens will be transferred from Account to deployed instance of DEX contract
+    function sell(uint256 amount) public {
+
+        // approving the DEX contract to spend amount on behalf of account.
+        // Although, I tried to manually approve it on YorkERC20Token and verified using allowance function
+        //but it didn't go through, so coding the apporve.
+
+    token.approve(address(this), amount);
+
+// transfering tokens from account account to contract
+    require(token.transferFrom(msg.sender, address(this), amount), "Token transfer failed");
+
+  //calc ether amount to be sent back to calling address
+    uint256 etherAmount = amount * 1 ether;
+
+    //sending ether back to account
+    payable(msg.sender).transfer(etherAmount);
+
+    emit LogMessage(token.balanceOf(msg.sender)); // to verify tokens with account.
+
+    emit Sold(amount);
+
+    }
+}
+
+
+
+
+
+
+
+
+
+##################################################
+
+// SPDX-License-Identifier: MIT
+
+pragma solidity >=0.8.2 <0.9.0;
+
+
+
+
+interface IERC20 {
+
+    function totalSupply() external view returns (uint256);
+    function balanceOf(address account) external view returns (uint256);
+    function allowance(address owner, address spender) external view returns (uint256);
+
+    function transfer(address recipient, uint256 amount) external returns (bool);
+    function approve(address spender, uint256 amount) external returns (bool);
+    function transferFrom(address sender, address recipient, uint256 amount) external returns (bool);
+    event Transfer(address indexed from, address indexed to, uint256 value);
+    event Approval(address indexed owner, address indexed spender, uint256 value);
+}
+
+contract  YorkERC20Token is IERC20{
+    // Track how many tokens are owned by each address.
+    mapping (address => uint256) public override balanceOf;
+
+    string public name = "York Token";
+    string public symbol = "YTN";
+    uint8 public decimals = 18;
+
+    uint256 public override totalSupply = 1000000 * (uint256(10) ** decimals);
+
+
+    constructor()  {
+        // Initially assign all tokens to the contract's creator.
+        balanceOf[msg.sender] = totalSupply;
+        emit Transfer(address(0), msg.sender, totalSupply);
+    }
+
+    function transfer(address to, uint256 value) public override returns (bool success) {
+        require(balanceOf[msg.sender] >= value);
+
+        balanceOf[msg.sender] = balanceOf[msg.sender] - (value);  // deduct from sender's balance
+        balanceOf[to] = balanceOf[to] + (value);          // add to recipient's balance
+        emit Transfer(msg.sender, to, value);
+        return true;
+    }
+
+
+    mapping(address => mapping(address => uint256)) public override allowance;
+
+    function approve(address spender, uint256 value) public  override returns (bool success)
+    {
+        allowance[tx.origin][spender] = value;
+        emit Approval(tx.origin, spender, value);
+        return true;
+    }
+
+    function transferFrom(address from, address to, uint256 value)
+        public override
+        returns (bool success)
+    {
+        require(value <= balanceOf[from], "not enough balance");
+        require(value <= allowance[from][msg.sender], "approval not enough");
+
+        balanceOf[from] = balanceOf[from] - (value);
+        balanceOf[to] = balanceOf[to] + (value);
+        allowance[from][msg.sender] = allowance[from][msg.sender] - (value);
+        emit Transfer(from, to, value);
+        return true;
+    }
+}
